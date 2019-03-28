@@ -25,23 +25,23 @@ const (
 	done              tabExecutionStatus = 3
 )
 
-type tab struct {
+// Tab is the structure that defines a Tab goroutine and all its needed params
+type Tab struct {
 	jobsChan    chan string
 	resultsChan chan string
-	id          int
+	ID          int
 	job         string
-	status      tabExecutionStatus
+	Status      tabExecutionStatus
 }
 
-func (t *tab) setJob(job string) error {
-
+// SetJob sets the objects job field
+func (t *Tab) SetJob(job string) Tab {
 	t.job = job
-
-	return nil
-
+	return *t
 }
 
-func (t *tab) getJob() string {
+// Job gets the objects job field
+func (t Tab) Job() string {
 	return t.job
 }
 
@@ -57,9 +57,8 @@ func (status tabExecutionStatus) String() string {
 		done:              "Done",
 	}
 
-	// return the name of a Weekday
-	// constant from the names array
-	// above.
+	// return the string constant
+	// from the status array above.
 	return strings[status]
 }
 
@@ -117,29 +116,18 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	shellChan := make(chan string)
-
-	go readForever(shellChan, &wg)
-
-	for {
-		a := <-shellChan
-
-		if a == "exit" {
-			break
-		}
-	}
-
-	wg.Wait()
+	ReadForever(&wg)
 
 	return
 }
 
-func readForever(msg chan string, wg *sync.WaitGroup) {
+// ReadForever is a shell abstraction to get commands from the cli.
+func ReadForever(wg *sync.WaitGroup) {
 	log.Print("[readForever]\n")
 
+	var tabs []Tab
+	var i = 0
 	reader := bufio.NewReader(os.Stdin)
-	tabs := []tab{}
-	i := 1
 
 	for {
 		fmt.Print("[crawler] > ")
@@ -159,17 +147,17 @@ func readForever(msg chan string, wg *sync.WaitGroup) {
 		if input[0] == "get" {
 			j := make(chan string)
 			r := make(chan string)
-			tab := &tab{
+			tab := Tab{
 				jobsChan:    j,
 				resultsChan: r,
-				id:          i,
-				job:         "none",
-				status:      startingExecution,
+				ID:          i,
+				job:         "n/a",
+				Status:      startingExecution,
 			}
 
 			wg.Add(1)
-			go tab.start(wg)
-			tabs = append(tabs, *tab)
+			go tab.Start(wg)
+			tabs = append(tabs, tab)
 			i++
 
 		}
@@ -178,9 +166,9 @@ func readForever(msg chan string, wg *sync.WaitGroup) {
 			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "Tab ID", "Job", "Status")
 			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "----", "----", "----")
 			for _, tab := range tabs {
-				fmt.Fprintf(os.Stdout, "\n %d\t%s\t%s\t", tab.id, tab.getJob(), tab.status)
+				fmt.Fprintf(os.Stdout, "\n %d\t%s\t%s\t", tab.ID, tab.Job(), tab.Status)
 			}
-			fmt.Fprintf(os.Stdout, "\n")
+			fmt.Fprintf(os.Stdout, "\n\n")
 
 		}
 
@@ -193,37 +181,47 @@ func readForever(msg chan string, wg *sync.WaitGroup) {
 					log.Panicf("[err] %s", err)
 				}
 
-				if id == tab.id {
+				if id == tab.ID {
 					tab.jobsChan <- input[2]
+
 				}
 
 			}
 
 		}
 
-		msg <- in
+		if input[0] == "exit" {
+			break
+		}
 
 	}
 
 }
 
-func (t *tab) start(wg *sync.WaitGroup) error {
+// Start is the starting function for a jobless tab.
+func (t Tab) Start(wg *sync.WaitGroup) error {
 	defer wg.Done()
-	log.Printf("[tab-%d-start]\n", t.id)
+	log.Printf("[tab-%d-start]\n", t.ID)
 
 	job := <-t.jobsChan
 
-	log.Printf("[tab-%d-job] %s\n", t.id, job)
+	if t.Job() != job {
+		(&t).SetJob(job)
+	}
 
-	t.setJob(job)
+	log.Printf("[tab-%d] %s\n", t.ID, job)
 
 	for {
-		log.Printf("[tab-%d-job] start - %s\n", t.id, job)
+		log.Printf("[tab-%d] start - %s\n", t.ID, job)
 
 		time.Sleep(2 * time.Second)
 		break
 
 	}
+
+	log.Printf("[tab-%d] end - %s\n", t.ID, job)
+
+	(&t).SetJob("none....")
 
 	return nil
 }

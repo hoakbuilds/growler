@@ -1,5 +1,5 @@
 
-PKG := github.com/murlokito/Miscellanea/Go/crawler
+PKG := github.com/murlokito/growler
 
 GOBUILD := go build
 GOINSTALL := GO111MODULE=on go install -v
@@ -12,7 +12,7 @@ MKDIRBUiLD := mkdir build
 build:
 	$(MKDIRBUiLD)
 	@$(call print, "Building debug dwd and dwcli.")
-	$(GOBUILD) -o build/crawler
+	$(GOBUILD) -o build/growler
 
 install:
 	@$(call print, "Installing dwd and dwcli.")
