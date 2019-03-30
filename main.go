@@ -8,58 +8,18 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
 	debug bool
+	tabs  []Tab
+	id    int
+	wg    sync.WaitGroup
 )
 
-type tabExecutionStatus int
-
-const (
-	//
-	startingExecution tabExecutionStatus = 0
-	waitingJob        tabExecutionStatus = 1
-	working           tabExecutionStatus = 2
-	done              tabExecutionStatus = 3
-)
-
-// Tab is the structure that defines a Tab goroutine and all its needed params
-type Tab struct {
-	jobsChan    chan string
-	resultsChan chan string
-	ID          int
-	job         string
-	Status      tabExecutionStatus
-}
-
-// SetJob sets the objects job field
-func (t *Tab) SetJob(job string) Tab {
-	t.job = job
-	return *t
-}
-
-// Job gets the objects job field
-func (t Tab) Job() string {
-	return t.job
-}
-
-func (status tabExecutionStatus) String() string {
-	// declare an array of strings
-	// ... operator counts how many
-	// items in the array (7)
-
-	strings := []string{
-		startingExecution: "Starting execution.",
-		waitingJob:        "Waiting for job.",
-		working:           "Working..",
-		done:              "Done",
-	}
-
-	// return the string constant
-	// from the status array above.
-	return strings[status]
+//TabController is
+type TabController interface {
+	Start()
 }
 
 // checkArguments checks the CLI arguments passed and returns them as an array
@@ -114,20 +74,19 @@ func main() {
 		log.Println("Logger started.")
 	}
 
-	var wg sync.WaitGroup
+	ReadForever()
 
-	ReadForever(&wg)
+	wg.Wait()
 
 	return
 }
 
 // ReadForever is a shell abstraction to get commands from the cli.
-func ReadForever(wg *sync.WaitGroup) {
+func ReadForever() {
 	log.Print("[readForever]\n")
 
-	var tabs []Tab
-	var i = 0
 	reader := bufio.NewReader(os.Stdin)
+	id++
 
 	for {
 		fmt.Print("[crawler] > ")
@@ -145,20 +104,43 @@ func ReadForever(wg *sync.WaitGroup) {
 		}
 
 		if input[0] == "get" {
-			j := make(chan string)
-			r := make(chan string)
-			tab := Tab{
-				jobsChan:    j,
-				resultsChan: r,
-				ID:          i,
-				job:         "n/a",
-				Status:      startingExecution,
+
+			var (
+				job string
+				tab Tab
+			)
+
+			if len(input) >= 2 {
+				job = input[1]
 			}
 
+			j := make(chan string)
+			r := make(chan string)
+
+			if job != "" {
+
+				tab = Tab{
+					jobsChan:    j,
+					resultsChan: r,
+					ID:          id,
+					job:         job,
+					Status:      startingExecution,
+				}
+
+			} else {
+				tab = Tab{
+					jobsChan:    j,
+					resultsChan: r,
+					ID:          id,
+					job:         "n/a",
+					Status:      startingExecution,
+				}
+			}
+			param := tab.Start
 			wg.Add(1)
-			go tab.Start(wg)
+			go param()
 			tabs = append(tabs, tab)
-			i++
+			id++
 
 		}
 
@@ -173,17 +155,17 @@ func ReadForever(wg *sync.WaitGroup) {
 		}
 
 		if input[0] == "assign" {
+			id, err := strconv.Atoi(input[1])
+
+			if err != nil {
+				log.Panicf("[err] %s", err)
+			}
+
 			for _, tab := range tabs {
-
-				id, err := strconv.Atoi(input[1])
-
-				if err != nil {
-					log.Panicf("[err] %s", err)
-				}
 
 				if id == tab.ID {
 					tab.jobsChan <- input[2]
-
+					tab.SetJob(input[2])
 				}
 
 			}
@@ -194,34 +176,28 @@ func ReadForever(wg *sync.WaitGroup) {
 			break
 		}
 
+		if (input[0] == "stop") && (len(input) == 2) {
+			id, err := strconv.Atoi(input[1])
+
+			if err != nil {
+				log.Panicf("[err] %s", err)
+			}
+			i := 0
+			for _, tab := range tabs {
+
+				if id == tab.ID {
+					tab.jobsChan <- "stop"
+
+					// Remove the element at index i from a.
+					copy(tabs[i:], tabs[i+1:]) // Shift tabs[i+1:] left one index.
+					tabs[len(tabs)-1] = Tab{}  // Erase last element (write zero value).
+					tabs = tabs[:len(tabs)-1]  // Truncate slice.
+
+				}
+				i++
+			}
+		}
+
 	}
 
-}
-
-// Start is the starting function for a jobless tab.
-func (t Tab) Start(wg *sync.WaitGroup) error {
-	defer wg.Done()
-	log.Printf("[tab-%d-start]\n", t.ID)
-
-	job := <-t.jobsChan
-
-	if t.Job() != job {
-		(&t).SetJob(job)
-	}
-
-	log.Printf("[tab-%d] %s\n", t.ID, job)
-
-	for {
-		log.Printf("[tab-%d] start - %s\n", t.ID, job)
-
-		time.Sleep(2 * time.Second)
-		break
-
-	}
-
-	log.Printf("[tab-%d] end - %s\n", t.ID, job)
-
-	(&t).SetJob("none....")
-
-	return nil
 }
