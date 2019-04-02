@@ -6,9 +6,12 @@ import (
 	"golang.org/x/net/html"
 )
 
+// Job is the structure that defines the Job message object that is passed
+// between goroutines. It describes a Job to be completed by one of them.
 type Job struct {
 }
 
+// HTMLMeta is the structure that defines the HTMLMeta object and its properties
 type HTMLMeta struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`

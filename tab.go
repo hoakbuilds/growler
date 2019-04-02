@@ -1,8 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
+	"math"
+	"net/http"
 	"time"
+
+	"github.com/imroc/req"
 )
 
 type tabExecutionStatus int
@@ -32,6 +38,56 @@ func (t *Tab) SetJob(job string) {
 // Job gets the objects job field
 func (t Tab) Job() string {
 	return t.job
+}
+
+// toReadableDate receives an interface with a timestamp
+// and returns a time.Time structure, which is human-readable
+func toReadableDate(timestamp interface{}) time.Time {
+
+	sec, dec := math.Modf(timestamp.(float64))
+	tm := time.Unix(int64(sec), int64(dec*(1e9)))
+
+	return tm
+}
+
+func requestURL(url string) []byte {
+	var contents []byte
+	response, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("%s", err)
+	} else {
+		defer response.Body.Close()
+		contents, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			fmt.Printf("%s", err)
+		}
+		fmt.Printf("%s\n", string(contents))
+
+	}
+	return contents
+}
+
+// requestURL receives a url in the form of a string and returns
+// a map[string]interface{} with the JSON content of that request's
+// response
+func requestAPI(url string) map[string]interface{} {
+	// use Req object to initiate requests.
+	req := req.New()
+	req.Get(url)
+
+	// use req package to initiate request.
+	r, err := req.Get(url)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var res map[string]interface{}
+
+	r.ToJSON(&res) // response => struct/map
+
+	return res
+
 }
 
 func (status tabExecutionStatus) String() string {
