@@ -9,6 +9,22 @@ import (
 // Job is the structure that defines the Job message object that is passed
 // between goroutines. It describes a Job to be completed by one of them.
 type Job struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
+}
+
+// ByteResult is the structure that defines the ByteResult message object that is passed
+// between goroutines. It describes the Result of a job that is returned with the
+// corresponding message in a byte array.
+type ByteResult struct {
+	Result []byte `json:"result"`
+}
+
+// JSONResult is the structure that defines the JSONResult message object that is passed
+// between goroutines. It describes the Result of a job that is returned with the
+// corresponding message in JSON notification (as a map[string]interface).
+type JSONResult struct {
+	Result map[string]interface{} `json:"result"`
 }
 
 // HTMLMeta is the structure that defines the HTMLMeta object and its properties
