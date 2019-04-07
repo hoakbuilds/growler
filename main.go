@@ -127,21 +127,15 @@ func ReadForever() {
 					Status:      startingExecution,
 				}
 
-			} else {
-				tab = Tab{
-					jobsChan:    j,
-					resultsChan: r,
-					ID:          id,
-					job:         "n/a",
-					Status:      startingExecution,
-				}
-			}
-			param := tab.Start
-			wg.Add(1)
-			go param()
-			tabs = append(tabs, tab)
-			id++
+				param := tab.Start
+				wg.Add(1)
+				go param()
+				tabs = append(tabs, tab)
+				id++
 
+			} else {
+				fmt.Print("[error] you must provide a valid URL.\n")
+			}
 		}
 
 		if input[0] == "list" {
