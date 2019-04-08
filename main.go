@@ -123,7 +123,7 @@ func ReadForever() {
 					jobsChan:    j,
 					resultsChan: r,
 					ID:          id,
-					job:         job,
+					Job:         job,
 					Status:      startingExecution,
 				}
 
@@ -142,14 +142,22 @@ func ReadForever() {
 			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "Tab ID", "Job", "Status")
 			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "----", "----", "----")
 			for _, tab := range tabs {
-				fmt.Fprintf(os.Stdout, "\n %d\t%s\t%s\t", tab.ID, tab.Job(), tab.Status)
+				fmt.Fprintf(os.Stdout, "\n %d\t%s\t%s\t", tab.ID, tab.Job, tab.Status)
 			}
 			fmt.Fprintf(os.Stdout, "\n\n")
 
 		}
 
-		if input[0] == "assign" {
-			id, err := strconv.Atoi(input[1])
+		if input[0] == "help" {
+			fmt.Fprintf(os.Stdout, "\n \t Command usage help\n")
+			fmt.Fprintf(os.Stdout, "\nget <url> \t - Opens a new tab and gives it the job of requesting the given url.\n")
+			fmt.Fprintf(os.Stdout, "\nlist \t\t - Lists all open tabs, their current or last job, and their current status.\n")
+			fmt.Fprintf(os.Stdout, "\nstop <tab id> \t - Stops the thread represented by the input id.\n\t\t If a thread is working it will wait until it has finished to stop it.\n")
+			fmt.Fprintf(os.Stdout, "\njob <url> \t - Adds the given url to the pool of jobs, it will be executed once a tab is available.\n")
+			fmt.Fprintf(os.Stdout, "\nexit \t\t - Stops all tabs and exits the browser.\n\n")
+		}
+
+		if input[0] == "job" {
 
 			if err != nil {
 				log.Panicf("[err] %s", err)
@@ -157,9 +165,8 @@ func ReadForever() {
 
 			for _, tab := range tabs {
 
-				if id == tab.ID {
-					tab.jobsChan <- input[2]
-					tab.SetJob(input[2])
+				if tab.Status == waitingJob {
+					tab.jobsChan <- input[1]
 				}
 
 			}
@@ -167,6 +174,9 @@ func ReadForever() {
 		}
 
 		if input[0] == "exit" {
+			for _, tab := range tabs {
+				tab.jobsChan <- "stop"
+			}
 			break
 		}
 

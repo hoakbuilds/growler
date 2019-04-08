@@ -26,18 +26,8 @@ type Tab struct {
 	jobsChan    chan string
 	resultsChan chan string
 	ID          int
-	job         string
+	Job         string
 	Status      tabExecutionStatus
-}
-
-// SetJob sets the objects job field
-func (t *Tab) SetJob(job string) {
-	t.job = job
-}
-
-// Job gets the objects job field
-func (t Tab) Job() string {
-	return t.job
 }
 
 // toReadableDate receives an interface with a timestamp
@@ -50,6 +40,9 @@ func toReadableDate(timestamp interface{}) time.Time {
 	return tm
 }
 
+// requestURL receives a url in the form of a string and returns
+// a []byte with the byte content of that request's
+// response
 func requestURL(url string) []byte {
 	var contents []byte
 	response, err := http.Get(url)
@@ -67,7 +60,7 @@ func requestURL(url string) []byte {
 	return contents
 }
 
-// requestURL receives a url in the form of a string and returns
+// requestAPI receives a url in the form of a string and returns
 // a map[string]interface{} with the JSON content of that request's
 // response
 func requestAPI(url string) map[string]interface{} {
@@ -123,9 +116,9 @@ func (t Tab) Start() {
 			break
 		}
 
-		if t.Job() != job {
-			log.Printf("[tab-%d-setting] job: %s, new job: %s\n", t.ID, t.Job(), job)
-			t.SetJob(job)
+		if t.Job != job {
+			log.Printf("[tab-%d-setting] job: %s, new job: %s\n", t.ID, t.Job, job)
+			t.Job = job
 			t.Status = working
 		}
 
@@ -143,7 +136,7 @@ func (t Tab) Start() {
 
 		log.Printf("[tab-%d] end - %s\n", t.ID, job)
 
-		t.SetJob("none....")
+		t.Job = t.Job + "(Finished)"
 
 	}
 	log.Printf("[tab-%d-deferringDone]\n", t.ID)
