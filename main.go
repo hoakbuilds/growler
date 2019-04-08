@@ -74,7 +74,22 @@ func main() {
 		log.Println("Logger started.")
 	}
 
+	// before performing a normal start, check for a previous session
+	restore, err := restoreSession()
+
+	if err != nil {
+		//assume there is no previous session
+		if err.Error() == "open tab.data: no such file or directory" {
+			log.Printf("[restoreSession]: no previous session found")
+			ReadForever()
+		} else {
+			log.Printf("[restoreSession]: %v\n", err)
+		}
+	}
 	ReadForever()
+	if len(restore) != 0 {
+
+	}
 
 	wg.Wait()
 
@@ -124,7 +139,7 @@ func ReadForever() {
 					resultsChan: r,
 					ID:          id,
 					Job:         job,
-					Status:      startingExecution,
+					Status:      working,
 				}
 
 				param := tab.Start
@@ -160,7 +175,7 @@ func ReadForever() {
 		if input[0] == "job" {
 
 			if err != nil {
-				log.Panicf("[err] %s", err)
+				log.Printf("[err] %s", err)
 			}
 
 			for _, tab := range tabs {
@@ -174,6 +189,10 @@ func ReadForever() {
 		}
 
 		if input[0] == "exit" {
+			err := writeFile(tabs)
+			if err != nil {
+				panic(err)
+			}
 			for _, tab := range tabs {
 				tab.jobsChan <- "stop"
 			}
@@ -184,7 +203,7 @@ func ReadForever() {
 			id, err := strconv.Atoi(input[1])
 
 			if err != nil {
-				log.Panicf("[err] %s", err)
+				log.Printf("[err] %s", err)
 			}
 			i := 0
 			for _, tab := range tabs {
