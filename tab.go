@@ -4,21 +4,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"time"
-
-	"github.com/imroc/req"
 )
 
 type tabExecutionStatus int
 
 const (
 	//
-	startingExecution tabExecutionStatus = 0
-	waitingJob        tabExecutionStatus = 1
-	working           tabExecutionStatus = 2
-	done              tabExecutionStatus = 3
+	waitingJob tabExecutionStatus = 1
+	working    tabExecutionStatus = 2
 )
 
 // Tab is the structure that defines a Tab goroutine and all its needed params
@@ -30,57 +28,36 @@ type Tab struct {
 	Status      tabExecutionStatus
 }
 
-// toReadableDate receives an interface with a timestamp
-// and returns a time.Time structure, which is human-readable
-func toReadableDate(timestamp interface{}) time.Time {
-
-	sec, dec := math.Modf(timestamp.(float64))
-	tm := time.Unix(int64(sec), int64(dec*(1e9)))
-
-	return tm
-}
-
 // requestURL receives a url in the form of a string and returns
 // a []byte with the byte content of that request's
 // response
-func requestURL(url string) []byte {
-	var contents []byte
+func requestURL(url string) ([]byte, error) {
+
 	response, err := http.Get(url)
 	if err != nil {
-		fmt.Printf("%s", err)
-	} else {
-		defer response.Body.Close()
-		contents, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			fmt.Printf("%s", err)
-		}
-		fmt.Printf("%s\n", string(contents))
-
+		return nil, err
 	}
-	return contents
+	defer response.Body.Close()
+
+	contents, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return contents, nil
 }
 
-// requestAPI receives a url in the form of a string and returns
-// a map[string]interface{} with the JSON content of that request's
-// response
-func requestAPI(url string) map[string]interface{} {
-	// use Req object to initiate requests.
-	req := req.New()
-	req.Get(url)
-
-	// use req package to initiate request.
-	r, err := req.Get(url)
-
+// saveRequest saves the byte content of a request's response to a file
+func saveRequest(content []byte, filename string) error {
+	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-
-	var res map[string]interface{}
-
-	r.ToJSON(&res) // response => struct/map
-
-	return res
-
+	// write the content to the file
+	if _, err = f.Write(content); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (status tabExecutionStatus) String() string {
@@ -89,15 +66,106 @@ func (status tabExecutionStatus) String() string {
 	// items in the array (7)
 
 	strings := []string{
-		startingExecution: "Starting execution.",
-		waitingJob:        "Waiting for job.",
-		working:           "Working..",
-		done:              "Done",
+		waitingJob: "Waiting for job.",
+		working:    "Working..",
 	}
 
 	// return the string constant
 	// from the status array above.
 	return strings[status]
+}
+
+// restoreSession
+func restoreSession() ([]Tab, error) {
+	var (
+		tabs []Tab
+	)
+
+	data, err := ioutil.ReadFile("tab.data")
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(string(data), ",")
+	for _, line := range lines {
+
+		fmt.Print(line)
+	}
+	//
+	f, err := os.OpenFile("tab.data", os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		panic(err)
+	}
+	// nuke the previous session
+	if _, err = f.WriteString(" "); err != nil {
+		panic(err)
+	}
+	return tabs, nil
+}
+
+// writeFile is a function called by the browser to save current tab states
+func writeFile(tb []Tab) error {
+	f, err := os.OpenFile("tab.data", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, tab := range tabs {
+
+		//write tab id
+		if _, err = f.WriteString("Tab ID: "); err != nil {
+			panic(err)
+		}
+		id := strconv.Itoa(tab.ID)
+		if _, err = f.WriteString(id); err != nil {
+			panic(err)
+		}
+
+		//write job
+		if _, err = f.WriteString(",\nJob: "); err != nil {
+			panic(err)
+		}
+		if _, err = f.WriteString(tab.Job); err != nil {
+			panic(err)
+		}
+
+		//write status
+		if _, err = f.WriteString(",\nStatus: "); err != nil {
+			panic(err)
+		}
+		var status string
+		if tab.Status == 1 {
+			status = "Waiting Job"
+		}
+		if tab.Status == 2 {
+			status = "Working"
+		}
+		if _, err = f.WriteString(status); err != nil {
+			panic(err)
+		}
+
+		/*write last active session
+		t := time.Now()
+		if _, err = f.WriteString(",\nLast time active: "); err != nil {
+			panic(err)
+		}
+
+		if _, err = f.WriteString(t.Format("2006-01-02 15:04:05")); err != nil {
+			panic(err)
+		}*/
+
+		if _, err = f.WriteString(",\n-------------------- || --------------------\n"); err != nil {
+			panic(err)
+		}
+
+		if err != nil {
+			fmt.Println(err)
+			f.Close()
+		}
+
+	}
+
+	return nil
 }
 
 // Start is the starting function for a jobless tab.
@@ -106,6 +174,31 @@ func (t Tab) Start() {
 	log.Printf("[tab-%d-start]\n", t.ID)
 
 	for {
+		log.Printf("[tab-%d] starting %s\n", t.ID, t.Job)
+		for {
+
+			elapsed := time.Now().UnixNano() / 1000000
+
+			b, err := requestURL(t.Job)
+
+			if err != nil {
+				fmt.Printf("[error] there was an error requesting %s.\n[growler] > ", t.Job)
+			} else {
+
+				tm := time.Now().UnixNano() / 1000000
+				filename := strconv.FormatInt(tm, 10) + ".html"
+
+				err := saveRequest(b, filename)
+				if err != nil {
+					fmt.Printf("[error] there was an error saving the bytes to file %s.\n[growler] > ", filename)
+				} else {
+					fmt.Printf("\n[success] request to %s saved to file %s\nTime elapsed: %d ms\nRequest size: %d bytes\n[growler] > ", t.Job, filename, (tm - elapsed), len(b))
+				}
+
+				break
+			}
+
+		}
 
 		t.Status = waitingJob
 		log.Printf("[tab-%d-waitingJob]\n", t.ID)
@@ -122,21 +215,7 @@ func (t Tab) Start() {
 			t.Status = working
 		}
 
-		log.Printf("[tab-%d] starting %s\n", t.ID, job)
-
-		for {
-			log.Printf("[tab-%d] start - %s\n", t.ID, job)
-
-			time.Sleep(2 * time.Second)
-			break
-
-		}
-
-		t.Status = done
-
 		log.Printf("[tab-%d] end - %s\n", t.ID, job)
-
-		t.Job = t.Job + "(Finished)"
 
 	}
 	log.Printf("[tab-%d-deferringDone]\n", t.ID)

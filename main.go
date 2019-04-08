@@ -104,7 +104,7 @@ func ReadForever() {
 	id++
 
 	for {
-		fmt.Print("[crawler] > ")
+		fmt.Print("[growler] > ")
 		// Read the keyboad input.
 		in, err := reader.ReadString('\n')
 
