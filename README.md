@@ -21,6 +21,8 @@ You can install the app by running the following command in the root folder of t
 
 ```
 go install -v .
+# OR
+make install
 ```
 
 ### Running
@@ -33,6 +35,17 @@ growler
 
 #The next command will run the app with extra logging capabilities
 growler debug
+```
+
+Or in the following way
+```
+#This command builds the app into the build/ directory
+make build
+#OR
+go build
+
+#This one executes it
+./build/growler
 ```
 
 To verify the extra logging capabilities, the log's output is being done to the `info.log` file.
