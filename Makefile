@@ -19,4 +19,4 @@ install:
 	$(GOINSTALL) $(PKG)
 
 clear:
-	rm go.*
+	rm tab.data & rm .*html & rm go.*

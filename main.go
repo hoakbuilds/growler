@@ -5,22 +5,18 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 )
 
-var (
-	debug bool
-	tabs  []Tab
-	id    int
-	wg    sync.WaitGroup
+const (
+	noFileOrDirectory string = " no such file or directory"
 )
 
-//TabController is
-type TabController interface {
-	Start()
-}
+var (
+	debug bool
+	wg    sync.WaitGroup
+)
 
 // checkArguments checks the CLI arguments passed and returns them as an array
 func checkArguments() (arguments []string) {
@@ -63,33 +59,70 @@ func init() {
 // main is the main function of the program
 func main() {
 
-	if debug == true {
-		f, err := os.OpenFile("info.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("error opening file: %v", err)
-		}
-		defer f.Close()
+	defer wg.Wait()
 
-		log.SetOutput(f)
-		log.Println("Logger started.")
+	var (
+		tabCntl TabController
+		wg      sync.WaitGroup
+	)
+
+	f, err := os.OpenFile("info.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	log.SetOutput(f)
+	log.Println("Logger started.")
+
+	// before performing a normal start, check for a previous session
+	restore, latestID, err := restoreSession()
+
+	if err != nil {
+		//assume there is no previous session
+		errSplit := strings.Split(err.Error(), ":")
+		if errSplit[1] == noFileOrDirectory {
+			log.Printf("[restoreSession]: no previous session found")
+		} else {
+			log.Printf("[restoreSession]: %v\n", err)
+		}
 	}
 
-	ReadForever()
+	tabCntlChan := make(chan string, 10)
+	shellCommChan := make(chan string, 10)
 
-	wg.Wait()
+	if len(restore) != 0 {
+		tabCntl = TabController{
+			tcChan: tabCntlChan,
+			shChan: shellCommChan,
+			tabs:   []Tab{},
+			id:     latestID,
+		}
 
-	return
+	} else {
+		tabCntl = TabController{
+			tcChan: tabCntlChan,
+			shChan: shellCommChan,
+			tabs:   []Tab{},
+			id:     0,
+		}
+	}
+
+	param := tabCntl.Run
+	wg.Add(1)
+	go param(restore)
+
+	ReadForever(tabCntlChan, shellCommChan)
 }
 
 // ReadForever is a shell abstraction to get commands from the cli.
-func ReadForever() {
+func ReadForever(tabCntlChan chan string, shellCommChan chan string) {
 	log.Print("[readForever]\n")
 
 	reader := bufio.NewReader(os.Stdin)
-	id++
 
 	for {
-		fmt.Print("[crawler] > ")
+		fmt.Print("[growler] > ")
 		// Read the keyboad input.
 		in, err := reader.ReadString('\n')
 
@@ -103,99 +136,91 @@ func ReadForever() {
 			log.Printf("[shell_debug]: %v\n", input)
 		}
 
-		if input[0] == "get" {
+		if input[0] == "help" {
+			fmt.Fprintf(os.Stdout, "\n \t Command usage help\n")
+			fmt.Fprintf(os.Stdout, "\nget <url> \t - Opens a new tab and gives it the job of requesting the given url.\n")
+			fmt.Fprintf(os.Stdout, "\nlist \t\t - Lists all open tabs, their current or last job, and their current status.\n")
+			fmt.Fprintf(os.Stdout, "\nstop <tab id> \t - Stops the thread represented by the input id.\n\t\t If a thread is working it will wait until it has finished to stop it.\n")
+			fmt.Fprintf(os.Stdout, "\njob <url> \t - Adds the given url to the pool of jobs, it will be executed once a tab is available.\n")
+			fmt.Fprintf(os.Stdout, "\nexit \t\t - Stops all tabs and exits the browser.\n\n")
+			continue
+		} else if input[0] == "list" {
 
-			var (
-				job string
-				tab Tab
-			)
+			tabCntlChan <- input[0]
+			recv := <-shellCommChan
 
-			if len(input) >= 2 {
-				job = input[1]
+			if recv == "ok" {
+				continue
 			}
 
-			j := make(chan string)
-			r := make(chan string)
+		} else if input[0] == "get" {
 
-			if job != "" {
-
-				tab = Tab{
-					jobsChan:    j,
-					resultsChan: r,
-					ID:          id,
-					job:         job,
-					Status:      startingExecution,
-				}
-
+			if len(input) < 2 {
+				fmt.Print("[error] you must provide a valid URL.\n")
+				continue
 			} else {
-				tab = Tab{
-					jobsChan:    j,
-					resultsChan: r,
-					ID:          id,
-					job:         "n/a",
-					Status:      startingExecution,
+				tabCntlChan <- input[0]
+				recv := <-shellCommChan
+
+				if recv == "url" {
+					tabCntlChan <- input[1]
 				}
+
+				ok := <-shellCommChan
+
+				if ok == "ok" {
+					continue
+				}
+
 			}
-			param := tab.Start
-			wg.Add(1)
-			go param()
-			tabs = append(tabs, tab)
-			id++
+
+		} else if input[0] == "exit" {
+			tabCntlChan <- input[0]
+			msg := <-shellCommChan
+
+			if msg == "ok" {
+				break
+			}
+
+		}
+		if input[0] == "stop" {
+
+			if len(input) < 2 {
+				fmt.Print("[error] you must provide a valid Tab ID.\n")
+				continue
+			} else {
+				tabCntlChan <- input[0]
+				recv := <-shellCommChan
+
+				if recv == "TabID" {
+					tabCntlChan <- input[1]
+				}
+
+				continue
+			}
+
+		}
+		if input[0] == "stop" && input[1] == "all" {
+
+			tabCntlChan <- input[0]
+			recv := <-shellCommChan
+
+			if recv == "TabID" {
+				tabCntlChan <- input[1]
+			}
+			ok := <-shellCommChan
+			if ok == "ok" {
+				continue
+			}
 
 		}
 
-		if input[0] == "list" {
-			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "Tab ID", "Job", "Status")
-			fmt.Fprintf(os.Stdout, "\n %s\t%s\t%s\t", "----", "----", "----")
-			for _, tab := range tabs {
-				fmt.Fprintf(os.Stdout, "\n %d\t%s\t%s\t", tab.ID, tab.Job(), tab.Status)
-			}
-			fmt.Fprintf(os.Stdout, "\n\n")
-
-		}
-
-		if input[0] == "assign" {
-			id, err := strconv.Atoi(input[1])
+		if input[0] == "job" {
 
 			if err != nil {
-				log.Panicf("[err] %s", err)
+				log.Printf("[err] %s", err)
 			}
 
-			for _, tab := range tabs {
-
-				if id == tab.ID {
-					tab.jobsChan <- input[2]
-					tab.SetJob(input[2])
-				}
-
-			}
-
-		}
-
-		if input[0] == "exit" {
-			break
-		}
-
-		if (input[0] == "stop") && (len(input) == 2) {
-			id, err := strconv.Atoi(input[1])
-
-			if err != nil {
-				log.Panicf("[err] %s", err)
-			}
-			i := 0
-			for _, tab := range tabs {
-
-				if id == tab.ID {
-					tab.jobsChan <- "stop"
-
-					// Remove the element at index i from a.
-					copy(tabs[i:], tabs[i+1:]) // Shift tabs[i+1:] left one index.
-					tabs[len(tabs)-1] = Tab{}  // Erase last element (write zero value).
-					tabs = tabs[:len(tabs)-1]  // Truncate slice.
-
-				}
-				i++
-			}
 		}
 
 	}
