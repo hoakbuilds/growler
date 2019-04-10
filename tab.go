@@ -76,96 +76,62 @@ func (status tabExecutionStatus) String() string {
 }
 
 // restoreSession
-func restoreSession() ([]Tab, error) {
+func restoreSession() ([]Tab, int, error) {
 	var (
-		tabs []Tab
+		tabs     []Tab
+		latestID int
 	)
 
 	data, err := ioutil.ReadFile("tab.data")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	lines := strings.Split(string(data), ",")
+	lines := strings.Split(string(data), "\n--------------------------------------------\n")
+
 	for _, line := range lines {
+		var (
+			id  int
+			job string
+		)
 
-		fmt.Print(line)
-	}
-	//
-	f, err := os.OpenFile("tab.data", os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		panic(err)
-	}
-	// nuke the previous session
-	if _, err = f.WriteString(" "); err != nil {
-		panic(err)
-	}
-	return tabs, nil
-}
+		j := make(chan string)
+		r := make(chan string)
 
-// writeFile is a function called by the browser to save current tab states
-func writeFile(tb []Tab) error {
-	f, err := os.OpenFile("tab.data", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		panic(err)
-	}
+		//fmt.Print(line)
+		split := strings.Split(line, ",")
+		if len(split) > 1 {
+			for i := 0; i < len(split); i++ {
 
-	for _, tab := range tabs {
+				params := strings.Split(split[i], "::")
+				if i == 0 {
+					id, err = strconv.Atoi(params[1])
+					if id > latestID {
+						latestID = id
+					}
 
-		//write tab id
-		if _, err = f.WriteString("Tab ID: "); err != nil {
-			panic(err)
-		}
-		id := strconv.Itoa(tab.ID)
-		if _, err = f.WriteString(id); err != nil {
-			panic(err)
+					if err != nil {
+						log.Printf("[err] %s", err)
+					}
+				}
+				if i == 1 {
+					job = params[1]
+				}
+			}
+
 		}
 
-		//write job
-		if _, err = f.WriteString(",\nJob: "); err != nil {
-			panic(err)
+		t := Tab{
+			jobsChan:    j,
+			resultsChan: r,
+			ID:          id,
+			Job:         job,
+			Status:      waitingJob,
 		}
-		if _, err = f.WriteString(tab.Job); err != nil {
-			panic(err)
-		}
-
-		//write status
-		if _, err = f.WriteString(",\nStatus: "); err != nil {
-			panic(err)
-		}
-		var status string
-		if tab.Status == 1 {
-			status = "Waiting Job"
-		}
-		if tab.Status == 2 {
-			status = "Working"
-		}
-		if _, err = f.WriteString(status); err != nil {
-			panic(err)
-		}
-
-		/*write last active session
-		t := time.Now()
-		if _, err = f.WriteString(",\nLast time active: "); err != nil {
-			panic(err)
-		}
-
-		if _, err = f.WriteString(t.Format("2006-01-02 15:04:05")); err != nil {
-			panic(err)
-		}*/
-
-		if _, err = f.WriteString(",\n-------------------- || --------------------\n"); err != nil {
-			panic(err)
-		}
-
-		if err != nil {
-			fmt.Println(err)
-			f.Close()
-		}
+		tabs = append(tabs, t)
 
 	}
-
-	return nil
+	return tabs, latestID, nil
 }
 
 // Start is the starting function for a jobless tab.
