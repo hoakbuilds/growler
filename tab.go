@@ -28,6 +28,13 @@ type Tab struct {
 	Status      tabExecutionStatus
 }
 
+// RestoredTab is the structure that defines a Tab goroutine and all its needed params
+type RestoredTab struct {
+	ID     int
+	Job    string
+	Status tabExecutionStatus
+}
+
 // requestURL receives a url in the form of a string and returns
 // a []byte with the byte content of that request's
 // response
@@ -76,9 +83,9 @@ func (status tabExecutionStatus) String() string {
 }
 
 // restoreSession
-func restoreSession() ([]Tab, int, error) {
+func restoreSession() ([]RestoredTab, int, error) {
 	var (
-		tabs     []Tab
+		tabs     []RestoredTab
 		latestID int
 	)
 
@@ -95,10 +102,6 @@ func restoreSession() ([]Tab, int, error) {
 			job string
 		)
 
-		j := make(chan string)
-		r := make(chan string)
-
-		//fmt.Print(line)
 		split := strings.Split(line, ",")
 		if len(split) > 1 {
 			for i := 0; i < len(split); i++ {
@@ -119,16 +122,13 @@ func restoreSession() ([]Tab, int, error) {
 				}
 			}
 
+			t := RestoredTab{
+				ID:     id,
+				Job:    job,
+				Status: waitingJob,
+			}
+			tabs = append(tabs, t)
 		}
-
-		t := Tab{
-			jobsChan:    j,
-			resultsChan: r,
-			ID:          id,
-			Job:         job,
-			Status:      waitingJob,
-		}
-		tabs = append(tabs, t)
 
 	}
 	return tabs, latestID, nil
@@ -141,29 +141,31 @@ func (t Tab) Start() {
 
 	for {
 		log.Printf("[tab-%d] starting %s\n", t.ID, t.Job)
-		for {
+		if t.Status != waitingJob && t.Job != "" {
+			for {
 
-			elapsed := time.Now().UnixNano() / 1000000
+				elapsed := time.Now().UnixNano() / 1000000
 
-			b, err := requestURL(t.Job)
+				b, err := requestURL(t.Job)
 
-			if err != nil {
-				fmt.Printf("[error] there was an error requesting %s.\n[growler] > ", t.Job)
-			} else {
-
-				tm := time.Now().UnixNano() / 1000000
-				filename := strconv.FormatInt(tm, 10) + ".html"
-
-				err := saveRequest(b, filename)
 				if err != nil {
-					fmt.Printf("[error] there was an error saving the bytes to file %s.\n[growler] > ", filename)
+					fmt.Printf("[error] there was an error requesting %s.\n[growler] > ", t.Job)
 				} else {
-					fmt.Printf("\n[success] request to %s saved to file %s\nTime elapsed: %d ms\nRequest size: %d bytes\n[growler] > ", t.Job, filename, (tm - elapsed), len(b))
+
+					tm := time.Now().UnixNano() / 1000000
+					filename := strconv.FormatInt(tm, 10) + ".html"
+
+					err := saveRequest(b, filename)
+					if err != nil {
+						fmt.Printf("[error] there was an error saving the bytes to file %s.\n[growler] > ", filename)
+					} else {
+						fmt.Printf("\n[success] request to %s saved to file %s\nTime elapsed: %d ms\nRequest size: %d bytes\n[growler] > ", t.Job, filename, (tm - elapsed), len(b))
+					}
+
+					break
 				}
 
-				break
 			}
-
 		}
 
 		t.Status = waitingJob

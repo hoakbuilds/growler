@@ -72,9 +72,4 @@ exit 		 - Stops all tabs and exits the browser.
 
 * [golang](https://golang.org) - The programming language
 
-## Contributors
-
-* **Hugo Carvalho** - [murlokito](https://github.com/murlokito)
-
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
 
