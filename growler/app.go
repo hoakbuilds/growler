@@ -199,6 +199,13 @@ func (a *App) Run() {
 			}
 
 		}
+		if input[0] == "crawl" {
+			if len(input) < 2 {
+				fmt.Print("[error] you must provide a search term to crawl unsplash.com\n")
+			} else {
+
+			}
+		}
 
 		if input[0] == "download" {
 			if len(input) < 3 {
