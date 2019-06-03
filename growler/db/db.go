@@ -36,7 +36,7 @@ func (c *MongoClient) Connect() error {
 		}
 	}
 
-	log.Printf("[GRWLR] Trying to connect to mongo at %s", url)
+	log.Printf("[GRWLR-DBC] Trying to connect to mongo at %s", url)
 
 	/*
 	 * Connect to the server and get a database handle
@@ -45,11 +45,18 @@ func (c *MongoClient) Connect() error {
 	if err != nil {
 		return err
 	}
+	defer dbSession.Close()
 
+	log.Printf("[GRWLR-DBC] Fetching mongodb Session")
 	db := dbSession.DB("growler")
 	c.DBSession = dbSession
 	c.DB = db
-	defer dbSession.Close()
+
+	info, err := c.DB.Session.BuildInfo()
+	if err != nil {
+		return err
+	}
+	log.Printf("[GRWLR-DBC] mongodb connection successful! mongodb build: %v", info)
 
 	return nil
 }

@@ -22,20 +22,20 @@ type Routes []Route
 
 // NewRouter creates a new router based on Gorilla's mux router
 // It also wraps the handlers with logging functionality.
-func (w *WebService) NewRouter() *mux.Router {
+func (ws *WebService) NewRouter() *mux.Router {
 
 	var routes = Routes{
 		Route{
 			"Index",
 			"GET",
 			"/",
-			w.Index,
+			ws.Index,
 		},
 		Route{
 			"ImageStream",
 			"GET",
 			"/images/stream/{id}",
-			w.GetImages,
+			ws.GetImages,
 		},
 	}
 
@@ -44,7 +44,7 @@ func (w *WebService) NewRouter() *mux.Router {
 		var handler http.Handler
 
 		handler = route.HandlerFunc
-		handler = Logger(handler, route.Name)
+		handler = ws.Logger(handler, route.Name)
 
 		router.
 			Methods(route.Method).
@@ -59,7 +59,7 @@ func (w *WebService) NewRouter() *mux.Router {
 // Logger is a wrapper for the http handler.
 // It gets passed the handler and returns the same handler
 // with added logging and timing functionalities.
-func Logger(inner http.Handler, name string) http.Handler {
+func (ws *WebService) Logger(inner http.Handler, name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -72,43 +72,44 @@ func Logger(inner http.Handler, name string) http.Handler {
 			name,
 			time.Since(start),
 		)
+		*ws.AppChan <- 1
 	})
 }
 
 // BuildAndServe is the function used to serve the API endpoints
-func (w *WebService) BuildAndServe() {
-
+func (ws *WebService) BuildAndServe() {
 	log.Println("[GRLWR-API] Building API endpoints.")
+	*ws.AppChan <- 1
+	ws.Router = ws.NewRouter()
 
-	w.Router = w.NewRouter()
-
-	log.Printf("[GRLWR-API] Listening and Serving API. Port: %v", w.Cfg.RestPort)
-
-	log.Fatal(http.ListenAndServe(":"+w.Cfg.RestPort,
+	log.Printf("[GRLWR-API] Listening and Serving API. Port: %v", ws.Cfg.RestPort)
+	*ws.AppChan <- 1
+	log.Fatal(http.ListenAndServe(":"+ws.Cfg.RestPort,
 		handlers.CORS(
 			handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
 			handlers.AllowedMethods([]string{"GET", "POST"}),
 			handlers.AllowedOrigins([]string{"*"}),
-		)(w.Router),
+		)(ws.Router),
 	),
 	)
+
 }
 
 // BuildAndServeTLS is the function used to serve the API endpoints
-func (w *WebService) BuildAndServeTLS() {
-
+func (ws *WebService) BuildAndServeTLS() {
+	*ws.AppChan <- 1
 	log.Println("[GRLWR-API] Building API endpoints.")
 
-	w.Router = w.NewRouter()
+	ws.Router = ws.NewRouter()
+	*ws.AppChan <- 1
+	log.Printf("[GRLWR-API] Listening and Serving API. Port: %v", ws.Cfg.RestPort)
 
-	log.Printf("[GRLWR-API] Listening and Serving API. Port: %v", w.Cfg.RestPort)
-
-	log.Fatal(http.ListenAndServeTLS(":"+w.Cfg.RestPort, "cert.pem", "private.key",
+	log.Fatal(http.ListenAndServeTLS(":"+ws.Cfg.RestPort, "cert.pem", "private.key",
 		handlers.CORS(
 			handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
 			handlers.AllowedMethods([]string{"GET", "POST"}),
 			handlers.AllowedOrigins([]string{"*"}),
-		)(w.Router),
+		)(ws.Router),
 	),
 	)
 }

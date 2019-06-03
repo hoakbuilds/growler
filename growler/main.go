@@ -4,8 +4,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/murlokito/growler/growler/api"
 
@@ -25,7 +27,6 @@ var (
 // when it's needed to
 func processInput(input string) []string {
 
-	log.Print("[processInput]\n")
 	// Remove the newline character.
 	input = strings.TrimSuffix(input, "\n")
 
@@ -71,7 +72,7 @@ func growlerMain(cfg Config) error {
 		return err
 	}
 
-	log.Printf("[GRWLR] Connected to mongodb at %s", cfg.mongoPort)
+	log.Printf("[GRWLR] Connected to mongodb at %s:%s", cfg.mongoAddr, cfg.mongoPort)
 
 	log.Printf("[GRWLR] Creating REST API server config")
 	apiCfg := api.WebSvcCfg{
@@ -79,14 +80,21 @@ func growlerMain(cfg Config) error {
 		RestPort: cfg.restPort,
 	}
 
+	AppChan := make(chan int, 5)
 	api := api.WebService{
 		MgoClient: &mongoClient,
 		WaitGroup: &wg,
 		Cfg:       &apiCfg,
 		ServChan:  make(chan interface{}),
+		AppChan:   &AppChan,
 	}
+	log.Printf("[GRWLR] Starting API Server..")
 
-	err = api.StartServer()
+	apiServParam := api.StartServer
+	wg.Add(1)
+	go apiServParam()
+
+	log.Printf("[GRWLR] Setting up Tab Controller")
 
 	if err != nil {
 		return err
@@ -98,9 +106,9 @@ func growlerMain(cfg Config) error {
 		//assume there is no previous session
 		errSplit := strings.Split(err.Error(), ":")
 		if errSplit[1] == noFileOrDirectory {
-			log.Printf("[restoreSession]: no previous session found")
+			log.Printf("[GRWLR]: no previous session found")
 		} else {
-			log.Printf("[restoreSession]: %v\n", err)
+			log.Printf("[GRWLR]: %v\n", err)
 		}
 	}
 
@@ -124,27 +132,42 @@ func growlerMain(cfg Config) error {
 		}
 	}
 
-	param := tabCntl.Run
+	tabCntlParam := tabCntl.Run
 	wg.Add(1)
-	go param(restore)
+	go tabCntlParam(restore)
 
 	f, err := os.OpenFile("info.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
 	mw := io.MultiWriter(os.Stdout, f)
 	log.SetOutput(mw)
 	log.Println("[GRWLR] Logger started.")
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Printf("[GRWLR] Catching signal, terminating gracefully.")
+		if len(tabCntl.tabs) > 1 {
+			err := tabCntl.TerminateGracefully()
+			if err != nil {
+				log.Printf("[GRWLR] Error terminating tab: %v", err)
+			}
+		}
+		os.Exit(1)
+	}()
+	wg.Add(1)
 	app := App{
 		Controller:  &tabCntl,
 		RestServer:  &api,
 		MongoClient: &mongoClient,
 		WaitGroup:   &wg,
 		Cfg:         &cfg,
+		AppChan:     make(chan int, 5),
 	}
-
 	app.Run()
 
 	return nil

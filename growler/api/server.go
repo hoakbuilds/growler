@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -18,31 +19,29 @@ type WebService struct {
 	ServChan chan interface{}
 
 	Cfg *WebSvcCfg
+
+	AppChan *chan int
 }
 
 // StartServer is used to start the Web Service
-func (w *WebService) StartServer() error {
+func (ws *WebService) StartServer() {
 
-	if w.Cfg.ServeTLS == true {
-		err := generateCertificate()
-		if err != nil {
-			return err
-		}
+	if ws.Cfg.ServeTLS == true {
 		/*
 		 * Start the server in a goroutine
 		 */
 		go func() {
-			w.BuildAndServeTLS()
+			ws.BuildAndServeTLS()
 		}()
 	} else {
 		/*
 		 * Start the server in a goroutine
 		 */
 		go func() {
-			w.BuildAndServe()
+			ws.BuildAndServe()
 		}()
 	}
 
-	<-w.ServChan
-	return nil
+	<-ws.ServChan
+	log.Printf("[GRWLR-API] Terminating API Server")
 }
