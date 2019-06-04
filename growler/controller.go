@@ -16,16 +16,37 @@ type Job struct {
 
 // Controller interface, which the TabController implements
 type Controller interface {
+
 	// Run is the function used by the Controller interface to execute its
 	// tasks, which are to get commands from the shell and relay their
 	// consequent jobs
 	Run()
+
+	// GetInfo is the function used by the Controller interface to get information
+	// about running tasks
 	GetInfo()
+
+	// NewTab is the function used by the Controller interface to spawn a new tab
 	NewTab()
+
+	// RelayJob is used to relay jobs to opened tabs that are not working
 	RelayJob()
+
+	// StopTab is used to stop a tab that is currently waiting for a job or
+	// simply running. If the tab is running a job, it will be stopped once it
+	// has finished that job.
 	StopTab()
+
+	// TerminateGracefully is the function used by the TabController
+	// to issue a Stop request to all tabs and then terminate, allowing
+	// the shell to exit gracefully.
 	TerminateGracefully()
+
+	// WriteSession is a function called by the browser to save current tab states
 	WriteSession()
+
+	// FinishRestoringSession is the function used by the TabController
+	// to finish restoring a previous session
 	FinishRestoringSession()
 }
 

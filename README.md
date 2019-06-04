@@ -64,7 +64,7 @@ cat info.log | grep -i 'tab-1-start'
 
 Writing the command `help` will print out a more detailed explanation of how commands work.
 ```
-[growler] > help
+[GRWLR] > help
 
  	 Command usage help
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -30,9 +31,34 @@ type Tab struct {
 
 // RestoredTab is the structure that defines a Tab goroutine and all its needed params
 type RestoredTab struct {
-	ID     int
-	Job    string
-	Status tabExecutionStatus
+	jobsChan    chan string
+	resultsChan chan string
+	ID          int
+	Job         string
+	Status      tabExecutionStatus
+}
+
+// DownloadFile will download a url to a local file. It's efficient because it will
+// write as it downloads and not load the whole file into memory.
+func DownloadFile(filepath string, url string) error {
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 // requestURL receives a url in the form of a string and returns
@@ -149,7 +175,8 @@ func (t Tab) Start() {
 				b, err := requestURL(t.Job)
 
 				if err != nil {
-					fmt.Printf("[error] there was an error requesting %s.\n[growler] > ", t.Job)
+					fmt.Printf("[error] there was an error requesting %s.\n[GRWLR] > ", t.Job)
+					break
 				} else {
 
 					tm := time.Now().UnixNano() / 1000000
@@ -157,9 +184,9 @@ func (t Tab) Start() {
 
 					err := saveRequest(b, filename)
 					if err != nil {
-						fmt.Printf("[error] there was an error saving the bytes to file %s.\n[growler] > ", filename)
+						fmt.Printf("[error] there was an error saving the bytes to file %s.\n[GRWLR] > ", filename)
 					} else {
-						fmt.Printf("\n[success] request to %s saved to file %s\nTime elapsed: %d ms\nRequest size: %d bytes\n[growler] > ", t.Job, filename, (tm - elapsed), len(b))
+						fmt.Printf("\n[success] request to %s saved to file %s\nTime elapsed: %d ms\nRequest size: %d bytes\n[GRWLR] > ", t.Job, filename, (tm - elapsed), len(b))
 					}
 
 					break
