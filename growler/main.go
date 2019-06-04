@@ -106,9 +106,9 @@ func growlerMain(cfg Config) error {
 		//assume there is no previous session
 		errSplit := strings.Split(err.Error(), ":")
 		if errSplit[1] == noFileOrDirectory {
-			log.Printf("[GRWLR]: no previous session found")
+			log.Printf("[GRWLR] No previous Tab Controller session found")
 		} else {
-			log.Printf("[GRWLR]: %v\n", err)
+			log.Printf("[GRWLR] %v\n", err)
 		}
 	}
 

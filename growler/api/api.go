@@ -35,6 +35,12 @@ func (ws *WebService) NewRouter() *mux.Router {
 			"ImageStream",
 			"GET",
 			"/images/stream/{id}",
+			ws.StreamImage,
+		},
+		Route{
+			"GetImages",
+			"GET",
+			"/images/get/{limit}",
 			ws.GetImages,
 		},
 	}

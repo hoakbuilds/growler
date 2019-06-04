@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -43,6 +44,7 @@ func (a *App) Run() {
 
 	reader := bufio.NewReader(os.Stdin)
 
+	log.Print("[GRWLR] growler shell\n")
 	for {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -55,7 +57,6 @@ func (a *App) Run() {
 				log.Printf("\n[GRWLR] Catching signal, terminating gracefully.")
 			}
 		}()
-		log.Print("[GRWLR] growler shell\n")
 		fmt.Print("\n[GRWLR] > ")
 		// Read the keyboad input.
 		in, err := reader.ReadString('\n')
@@ -186,12 +187,14 @@ func (a *App) Run() {
 				f, err := os.OpenFile(filename[0]+".txt", os.O_RDWR|os.O_CREATE, 0666)
 
 				if secPrompt[0] == "Y" || secPrompt[0] == "y" {
-
+					f.WriteString(input[1] + "\n")
+					stroutput := strconv.Itoa(len(pixels)) + " " + strconv.Itoa(len(pixels[0])) + " " + strconv.Itoa(3)
+					f.WriteString(stroutput)
 					for row := 0; row < len(pixels); row++ {
 
 						for x := 0; x < len(pixels[row]); x++ {
-							str := fmt.Sprintf("X: %d Y: %d\t(R,G,B,A) (%d, %d, %d, %d)\n", x, row, pixels[row][x].R, pixels[row][x].G, pixels[row][x].B, pixels[row][x].A)
-							f.WriteString(str)
+							stroutput := fmt.Sprintf("%d\n%d\n%d\n", pixels[row][x].R, pixels[row][x].G, pixels[row][x].B)
+							f.WriteString(stroutput)
 						}
 					}
 				}
@@ -207,6 +210,16 @@ func (a *App) Run() {
 			}
 		}
 
+		if input[0] == "list" && input[1] == "images-db" {
+			gfs := a.MongoClient.DB("growler").GridFS("images")
+			iter := gfs.Find(nil).Iter()
+
+			result := new(fileinfo)
+			for iter.Next(&result) {
+				fmt.Println("一个一个输出：", result)
+			}
+		}
+
 		if input[0] == "download" {
 			if len(input) < 3 {
 				fmt.Print("[error] you must provide a valid URL to download a file and the file name to save it.\n")
@@ -214,8 +227,9 @@ func (a *App) Run() {
 				err := DownloadFile(input[2], input[1])
 				if err != nil {
 					// replace this with real error handling
-					panic(err.Error())
+					fmt.Print("[error] %v", err.Error())
 				}
+
 			}
 		}
 
