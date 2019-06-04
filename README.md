@@ -68,16 +68,21 @@ Writing the command `help` will print out a more detailed explanation of how com
 
  	 Command usage help
 
-get <url> 	 - Opens a new tab and gives it the job of requesting the given url.
+get <url> 					 - Opens a new tab and gives it the job of requesting the given url.
 
-list 		 - Lists all open tabs, their current or last job, and their current status.
+list 						 - Lists all open tabs, their current or last job, and their current status.
 
-stop <tab id> 	 - Stops the thread represented by the input id.
-		 If a thread is working it will wait until it has finished to stop it.
+read <image_filename> 				 - Reads an image and tries to decode it into a txt with RGB values.
 
-job <url> 	 - Adds the given url to the pool of jobs, it will be executed once a tab is available.
+download <url_to_download> <output_filename> 	 - Requests the URL and saves the response or downloadable file to the output file.
 
-exit 		 - Stops all tabs and exits the browser.
+stop <tab id> 					 - Stops the thread represented by the input id.
+							 If a thread is working it will wait until it has finished to stop it.
+
+job <url> 					 - Adds the given url to the pool of jobs, it will be executed once a tab is available.
+
+exit 						 - Stops all tabs and exits the browser.
+
 
 ```
 
